@@ -569,7 +569,7 @@ void * RtspClientMsg(void*pParam)
 		{
 			//usleep(1000);
 			//printf("RTSP:Recv Error--- %d\n",nRes);
-            continue;
+            //continue;
 			g_rtspClients[pClient->index].status = RTSP_IDLE;
 			g_rtspClients[pClient->index].seqnum = 0;
 			g_rtspClients[pClient->index].tsvid = 0;
@@ -793,13 +793,13 @@ HI_S32 VENC_Sent(char *buffer,int buflen)
 		{
 			//printf("a");
 			rtp_hdr->marker = 1;
-			rtp_hdr->seq_no = htons(g_rtspClients[is].seqnum++); //ÐòÁÐºÅ£¬Ã¿·¢ËÍÒ»¸öRTP°üÔö1
+			rtp_hdr->seq_no = htons(g_rtspClients[is].seqnum++);
 			nalu_hdr = (NALU_HEADER*)&sendbuf[12];
 			nalu_hdr->F = 0;
 			nalu_hdr->NRI = nIsIFrm;
 			nalu_hdr->TYPE = nNaluType;
 
-			nalu_payload = &sendbuf[13];//Í¬Àí½«sendbuf[13]¸³¸ønalu_payload
+			nalu_payload = &sendbuf[13];
 			memcpy(nalu_payload,buffer,nAvFrmLen);
             g_rtspClients[is].tsvid += ts_increase;
 
@@ -984,18 +984,6 @@ HI_VOID* SAMPLE_COMM_VENC_GetVencStreamProcsent(HI_VOID *p)
         exit(4);
     }
     char copy[SIZE_VIEW];
-    memcpy(copy,map+START_VIEW, SIZE_VIEW);
-    usleep(500000);
-
-    for(j=0; j< SPLIT_VIEW; j++) {
-        if (memcmp(map+START_VIEW+(SIZE_BUFF)*j, copy+(SIZE_BUFF)*j, SIZE_BUFF)) {
-            wr_pointer = j;
-            rd_pointer = (j+SPLIT_VIEW/2)%SPLIT_VIEW;
-            break;
-        }
-    }
-    // output stream
-    usleep(500000);
 
     udpfd = socket(AF_INET,SOCK_DGRAM,0);//UDP
     printf("udp up\n");
@@ -1004,12 +992,21 @@ HI_VOID* SAMPLE_COMM_VENC_GetVencStreamProcsent(HI_VOID *p)
     while (HI_TRUE == pstPara->bThreadStart)
     {
         HI_S32 is,flag=0;
-        for(is=0;is<MAX_RTSP_CLIENT;is++) {
-            if(g_rtspClients[is].status == RTSP_SENDING) {
+        for (is = 0; is < MAX_RTSP_CLIENT; is++) {
+            if (g_rtspClients[is].status == RTSP_SENDING) {
                 flag = 1;
                 break;
             }
         }
+        memcpy(copy,map+START_VIEW, SIZE_VIEW);
+        usleep(2000000);
+        for(j=0; j< SPLIT_VIEW; j++) {
+            if (memcmp(map+START_VIEW+(SIZE_BUFF)*j, copy+SIZE_BUFF*j, SIZE_BUFF)) {
+                wr_pointer = j;
+                break;
+            }
+        }
+
         // output stream
         printf("wr=%d, rd=%d\n",wr_pointer, rd_pointer);
         while (((SPLIT_VIEW + wr_pointer - rd_pointer)%SPLIT_VIEW) > SPLIT_VIEW/4) {
@@ -1018,14 +1015,6 @@ HI_VOID* SAMPLE_COMM_VENC_GetVencStreamProcsent(HI_VOID *p)
                 nalu_extract(copy+SIZE_BUFF*rd_pointer, SIZE_BUFF, rd_pointer);
             }
             rd_pointer = (rd_pointer+1) % SPLIT_VIEW;
-        }
-        memcpy(copy,map+START_VIEW, SIZE_VIEW);
-        usleep(500000);
-        for(j=0; j< SPLIT_VIEW; j++) {
-            if (memcmp(map+START_VIEW+(SIZE_BUFF)*j, copy+SIZE_BUFF*j, SIZE_BUFF)) {
-                wr_pointer = j;
-                break;
-            }
         }
     }
 
@@ -1042,7 +1031,10 @@ HI_S32 tmp_view_get_picture(HI_VOID)
     pthread_create(&gs_VencPid, 0, SAMPLE_COMM_VENC_GetVencStreamProcsent, (HI_VOID*)&gs_stPara);
     pthread_setschedparam(gs_VencPid,SCHED_RR,&schedvenc);
 
-    while(1) {}
+    while(1) {
+        usleep(20000);
+
+    }
 
     return NULL;
 }
