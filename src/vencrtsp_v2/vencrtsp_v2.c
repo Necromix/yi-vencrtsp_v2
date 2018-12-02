@@ -30,7 +30,7 @@ extern "C"{
 #include "rtsp_server.h"
 #include "sample_comm.h"
 
-#define nalu_sent_len        (14*1024)
+#define nalu_sent_len        (14*1000)
 //#define nalu_sent_len        1400
 #define RTP_H264                    96
 #define MAX_CHAN                 2
@@ -848,7 +848,7 @@ static ssize_t full_write(int fd, const void *buf, size_t len)
 
 HI_S32 nalu_extract(char *buffer,int buflen, int rd)
 {
-    static char nalu[65535];
+    static char nalu[65535*2];
     static HI_U16 idx = 0;
     int i;
     static int buf = 0;
@@ -878,7 +878,7 @@ HI_S32 nalu_extract(char *buffer,int buflen, int rd)
         }
         nalu[idx] = buffer[i];
         idx++;
-        if (idx == 65534) {
+        if (idx == 65534*2) {
             printf("Nalu extract error idx=%d i=%d, buf=%d\n", idx,i, buf);
             idx = 0;
         }
@@ -917,8 +917,7 @@ HI_VOID* SAMPLE_COMM_VENC_GetVencStreamProcsent(HI_VOID *p)
 
     udpfd = socket(AF_INET,SOCK_DGRAM,0);//UDP
     printf("udp up\n");
-
-
+    uint8_t mask = 0;
     while (HI_TRUE == pstPara->bThreadStart) {
         HI_S32 is,flag=0;
         for (is = 0; is < MAX_RTSP_CLIENT; is++) {
@@ -928,23 +927,22 @@ HI_VOID* SAMPLE_COMM_VENC_GetVencStreamProcsent(HI_VOID *p)
             }
         }
         memcpy(copy,map+START_VIEW, SIZE_VIEW);
-        usleep(2000000);
-        for(j=0; j< SPLIT_VIEW; j++) {
-            if (memcmp(map+START_VIEW+(SIZE_BUFF)*j, copy+SIZE_BUFF*j, SIZE_BUFF)) {
-                wr_pointer = j;
+        usleep(1000000);
+        for (j = 0; j < SPLIT_VIEW; j++) {
+            if (memcmp(map+START_VIEW+(SIZE_BUFF)*rd_pointer,
+                       copy+SIZE_BUFF*rd_pointer,
+                       SIZE_BUFF)) {
+                wr_pointer = rd_pointer;
                 break;
-            }
-        }
-
-        // output stream
-        printf("wr=%d, rd=%d\n",wr_pointer, rd_pointer);
-        while (((SPLIT_VIEW + wr_pointer - rd_pointer)%SPLIT_VIEW) > SPLIT_VIEW/4) {
-            printf("=> read %d\n", rd_pointer);
-            if (flag) {
-                nalu_extract(copy+SIZE_BUFF*rd_pointer, SIZE_BUFF, rd_pointer);
+            } else {
+                printf("=> read %d\n", rd_pointer);
+                if (flag) {
+                    nalu_extract(copy+SIZE_BUFF*rd_pointer, SIZE_BUFF, rd_pointer);
+                }
             }
             rd_pointer = (rd_pointer+1) % SPLIT_VIEW;
         }
+        printf("wr=%d, rd=%d\n",wr_pointer, rd_pointer);
     }
 
     return HI_SUCCESS;
